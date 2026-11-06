@@ -62,7 +62,8 @@ def settings_loop():
             settings = new
             first = False
         except Exception as e:
-            if first: log("settings: using defaults (", e, ")")
+            if first and not getattr(settings_loop, "warned", False):
+                log("settings: using defaults (", e, ")"); settings_loop.warned = True
         if connected: heartbeat()
         time.sleep(15)
 
