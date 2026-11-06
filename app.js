@@ -96,6 +96,16 @@ async function loadAll() {
     spec = sp; status = Object.fromEntries(st.map((s) => [s.code, s.value]));
     const { local_key, ...safeInfo } = info;
     $("raw").textContent = JSON.stringify({ info: safeInfo, status, spec }, null, 1);
+    // Full thing model: lists every data point the device has, including ones missing from the standard spec.
+    api("GET", `/v2.0/cloud/thing/${devId}/model`).then((m) => {
+      let props = [];
+      try { props = JSON.parse(m.model).services.flatMap((sv) => sv.properties.map((p) => ({ id: p.abilityId, code: p.code, name: p.name, mode: p.accessMode, type: p.typeSpec }))); } catch {}
+      $("raw").textContent = JSON.stringify({ model: props }, null, 1) + "
+
+" + $("raw").textContent;
+    }).catch((e) => { $("raw").textContent = "model: " + e.message + "
+
+" + $("raw").textContent; });
     renderStatus(info);
     renderSettings();
     loadSensors();
@@ -242,6 +252,7 @@ function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&am
 document.querySelectorAll(".mode").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
 $("btnRefresh").onclick = loadAll;
 $("devSel").onchange = (e) => { devId = e.target.value; localStorage.setItem("alarmDev", devId); loadAll(); };
+$("btnCopy").onclick = () => navigator.clipboard.writeText($("raw").textContent).then(() => showMsg("הועתק"));
 $("btnOut").onclick = () => signOut(auth);
 $("btnLogin").onclick = async () => {
   $("loginErr").textContent = "";
