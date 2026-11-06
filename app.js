@@ -22,7 +22,7 @@ const NAME_HE = {
   "恢复出厂设置": "איפוס להגדרות יצרן", "子设备管理": "ניהול גלאים", "紧急状态": "מצב חירום",
 };
 // Never offered as controls: factory reset, raw/password data, and anything that would set off the siren.
-const HIDDEN = new Set(["恢复出厂设置", "设置密码", "子设备管理", "factory_reset", "password", "sub_admin", "alarm_call_number", "alarm_sms_number"]);
+const HIDDEN = new Set(["恢复出厂设置", "设置密码", "子设备管理", "factory_reset", "password", "password_set", "sub_admin", "alarm_call_number", "alarm_sms_number"]);
 const READONLY = new Set(["主机状态", "紧急状态", "master_state", "sos_state"]);
 const MSG_HE = {
   "Doorbell": "פעמון", "System Disarmed": "המערכת נוטרלה", "System Armed": "המערכת נדרכה", "Home Armed": "דריכת בית",
@@ -94,7 +94,8 @@ async function loadAll() {
       api("GET", `/v1.0/iot-03/devices/${devId}/specification`).catch(() => ({ functions: [], status: [] })),
     ]);
     spec = sp; status = Object.fromEntries(st.map((s) => [s.code, s.value]));
-    $("raw").textContent = JSON.stringify({ info, status, spec }, null, 1);
+    const { local_key, ...safeInfo } = info;
+    $("raw").textContent = JSON.stringify({ info: safeInfo, status, spec }, null, 1);
     renderStatus(info);
     renderSettings();
     loadSensors();
@@ -115,6 +116,11 @@ function renderStatus(info) {
   const on = info.online;
   $("online").textContent = on ? "מחובר" : "לא מחובר";
   $("online").className = "chip " + (on ? "ok" : "bad");
+  if ("charge_state" in status) {
+    $("power").hidden = false;
+    $("power").textContent = status.charge_state ? "🔌 חשמל" : "🔋 על סוללה";
+    $("power").className = "chip " + (status.charge_state ? "ok" : "warn");
+  }
   const mode = status.master_mode;
   $("modeNow").textContent = MODE_HE[mode] || mode || "—";
   document.querySelectorAll(".mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === modeKey(mode)));
@@ -181,37 +187,31 @@ async function sendSetting(code, value, el) {
   finally { el.disabled = false; }
 }
 
-// ---------- Sensors (sub-devices of the alarm host) ----------
-async function loadSensors() {
-  const ul = $("sensors");
-  try {
-    const subs = await api("GET", `/v1.0/devices/${devId}/sub-devices`);
-    if (!subs.length) { ul.innerHTML = '<li class="muted">הגלאים מחוברים ברדיו ישירות ליחידה, ו-Tuya לא חושפת אותם כמכשירים נפרדים. התראות מהגלאים מופיעות ביומן האירועים.</li>'; return; }
-    ul.innerHTML = "";
-    for (const s of subs) {
-      const li = document.createElement("li");
-      li.innerHTML = `<div><div class="sensor-name">${esc(s.name)}</div><div class="sensor-sub">${esc(s.product_name || s.category || "")}</div></div>
-        <div class="chips"><span class="chip ${s.online ? "" : "bad"}">${s.online ? "פעיל" : "לא מגיב"}</span><button class="ghost" title="שינוי שם">✏️</button></div>`;
-      li.querySelector("button").onclick = () => renameSensor(s);
-      ul.append(li);
-      api("GET", `/v1.0/iot-03/devices/${s.id}/status`).then((st) => {
-        const chips = li.querySelector(".chips");
-        for (const { code, value } of st) {
-          const r = SENSOR_STATUS[code]?.(value);
-          if (r) chips.insertAdjacentHTML("afterbegin", `<span class="chip ${r[1]}">${esc(r[0])}</span>`);
-        }
-      }).catch(() => {});
-    }
-  } catch (e) { ul.innerHTML = `<li class="err">${esc(e.message)}</li>`; }
+// ---------- Sensors ----------
+// The host keeps its RF sensors in the sub_admin data point: per sensor
+// [index, type, zone, ff ff ff, name length, name in UTF-16BE].
+function parseSensors(b64) {
+  const out = [];
+  if (!b64) return out;
+  const b = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  let i = 3;
+  while (i + 7 <= b.length) {
+    const idx = b[i], type = b[i + 1], zone = b[i + 2], len = b[i + 6];
+    const nb = b.slice(i + 7, i + 7 + len);
+    let name = "";
+    for (let k = 0; k + 1 < nb.length; k += 2) name += String.fromCharCode((nb[k] << 8) | nb[k + 1]);
+    out.push({ idx, type, zone, name: name.trim() });
+    i += 7 + len;
+  }
+  return out;
 }
-
-async function renameSensor(s) {
-  const name = prompt("שם חדש לגלאי:", s.name);
-  if (!name || name === s.name) return;
-  try {
-    await api("PUT", `/v1.0/iot-03/devices/${s.id}`, { name });
-    showMsg("השם עודכן"); loadSensors();
-  } catch (e) { showMsg("שינוי השם נכשל: " + e.message, true); }
+function loadSensors() {
+  const ul = $("sensors");
+  let list = [];
+  try { list = parseSensors(status.sub_admin); } catch {}
+  if (!list.length) { ul.innerHTML = '<li class="muted">היחידה לא דיווחה על גלאים</li>'; return; }
+  ul.innerHTML = list.map((x) => `<li><div><div class="sensor-name">${esc(x.name || "גלאי " + (x.idx + 1))}</div>
+    <div class="sensor-sub">מספר ${x.idx + 1}</div></div></li>`).join("");
 }
 
 // ---------- Event log ----------
