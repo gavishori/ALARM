@@ -15,7 +15,21 @@ const $ = (id) => document.getElementById(id);
 const auth = getAuth(initializeApp(firebaseConfig));
 
 // ---------- Hebrew labels for common Tuya alarm codes ----------
-const MODE_HE = { arm: "דרוכה", home: "דריכת בית", disarm: "מנוטרלת", sos: "מצוקה" };
+const MODE_HE = { arm: "דרוכה", armed: "דרוכה", home: "דריכת בית", disarm: "מנוטרלת", disarmed: "מנוטרלת", sos: "מצוקה" };
+// Tuya's own names for this host are partly Chinese; translate by name too.
+const NAME_HE = {
+  "设置密码": "סיסמת יחידה", "未接听重复拨打次数": "חיוגים חוזרים כשאין מענה", "主机状态": "מצב היחידה",
+  "恢复出厂设置": "איפוס להגדרות יצרן", "子设备管理": "ניהול גלאים", "紧急状态": "מצב חירום",
+};
+// Never offered as controls: factory reset, raw/password data, and anything that would set off the siren.
+const HIDDEN = new Set(["恢复出厂设置", "设置密码", "子设备管理", "factory_reset", "password", "sub_admin", "alarm_call_number", "alarm_sms_number"]);
+const READONLY = new Set(["主机状态", "紧急状态", "master_state", "sos_state"]);
+const MSG_HE = {
+  "Doorbell": "פעמון", "System Disarmed": "המערכת נוטרלה", "System Armed": "המערכת נדרכה", "Home Armed": "דריכת בית",
+  "System Armed Home": "דריכת בית", "SOS": "מצוקה", "Low Battery": "סוללה חלשה", "Power Off": "הפסקת חשמל", "AC Power Off": "הפסקת חשמל",
+  "Power On": "החשמל חזר", "AC Power Recover": "החשמל חזר", "Tamper": "פירוק גלאי", "Alarm": "אזעקה", "Door Open": "דלת נפתחה",
+};
+const heMsg = (v) => MSG_HE[v] || String(v).replace(/\bZone\b/i, "אזור").replace(/\bAlarm\b/i, "אזעקה");
 const LABELS = {
   delay_set: "השהיית יציאה (שניות)", alarm_delay_time: "השהיית כניסה (שניות)", alarm_time: "משך צפירה (דקות)",
   switch_alarm_sound: "צפירה", switch_alarm_light: "נורית אזעקה", switch_alarm_sms: "התראת SMS", switch_alarm_call: "חיוג בזמן אזעקה",
@@ -23,8 +37,9 @@ const LABELS = {
   switch_kb_sound: "צליל מקלדת", switch_kb_light: "תאורת מקלדת", switch_low_battery: "התראת סוללה חלשה",
   alarm_volume_value: "עוצמת צפירה", alarm_volume: "עוצמת צפירה", muffling: "השתקה", alarm_call_number: "מספרי חיוג",
   alarm_sms_number: "מספרי SMS", switch_mode_dl_sound: "צליל בהשהיה", master_language: "שפה",
+  master_state: "מצב היחידה", alarm_msg: "הודעה", master_mode: "שינוי מצב", sos_state: "מצב חירום",
 };
-const VALUE_HE = { low: "נמוך", middle: "בינוני", high: "גבוה", mute: "מושתק", normal: "רגיל", alarm: "אזעקה" };
+const VALUE_HE = { low: "נמוך", middle: "בינוני", high: "גבוה", mute: "מושתק", normal: "רגיל", alarm: "אזעקה", true: "פעיל", false: "כבוי", ...MODE_HE };
 const SENSOR_STATUS = {
   doorcontact_state: (v) => v ? ["פתוח", "warn"] : ["סגור", "ok"],
   pir: (v) => v === "pir" ? ["תנועה", "warn"] : ["שקט", "ok"],
@@ -88,13 +103,21 @@ async function loadAll() {
   finally { $("btnRefresh").disabled = false; }
 }
 
+// The device's own enum values for master_mode (e.g. "disarmed" rather than "disarm").
+const modeKey = (v) => String(v || "").replace(/ed$/, "");
+function modeValue(key) {
+  const f = (spec.functions || []).find((x) => x.code === "master_mode");
+  let range = []; try { range = JSON.parse(f?.values || "{}").range || []; } catch {}
+  return range.find((r) => modeKey(r) === key) || key;
+}
+
 function renderStatus(info) {
   const on = info.online;
   $("online").textContent = on ? "מחובר" : "לא מחובר";
   $("online").className = "chip " + (on ? "ok" : "bad");
   const mode = status.master_mode;
   $("modeNow").textContent = MODE_HE[mode] || mode || "—";
-  document.querySelectorAll(".mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+  document.querySelectorAll(".mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === modeKey(mode)));
   $("alarmBanner").hidden = !(status.master_state === "alarm" || status.alarm_state === "alarm" || mode === "sos");
 }
 
@@ -103,8 +126,8 @@ async function setMode(mode) {
   if (mode === "arm" && !confirm("לדרוך את האזעקה במצב מלא?")) return;
   document.querySelectorAll(".mode").forEach((b) => (b.disabled = true));
   try {
-    await api("POST", `/v1.0/iot-03/devices/${devId}/commands`, { commands: [{ code: "master_mode", value: mode }] });
-    status.master_mode = mode;
+    await api("POST", `/v1.0/iot-03/devices/${devId}/commands`, { commands: [{ code: "master_mode", value: modeValue(mode) }] });
+    status.master_mode = modeValue(mode);
     renderStatus({ online: true });
     showMsg("נשלח: " + MODE_HE[mode]);
     setTimeout(loadAll, 2500);
@@ -115,7 +138,7 @@ async function setMode(mode) {
 // ---------- Settings (built from the device's own function list) ----------
 function renderSettings() {
   const box = $("settings");
-  const fns = (spec.functions || []).filter((f) => f.code !== "master_mode");
+  const fns = (spec.functions || []).filter((f) => f.code !== "master_mode" && !HIDDEN.has(f.code) && !HIDDEN.has(f.name) && ["Boolean", "Enum", "Integer"].includes(f.type));
   if (!fns.length) { box.innerHTML = '<p class="muted">המכשיר לא חושף הגדרות דרך הענן.</p>'; return; }
   box.innerHTML = "";
   for (const f of fns) {
@@ -123,9 +146,11 @@ function renderSettings() {
     const cur = status[f.code];
     const row = document.createElement("div");
     row.className = "setting";
-    row.innerHTML = `<span>${esc(LABELS[f.code] || f.name || f.code)}</span>`;
+    row.innerHTML = `<span>${esc(LABELS[f.code] || NAME_HE[f.name] || f.name || f.code)}</span>`;
     let input;
-    if (f.type === "Boolean") {
+    if (READONLY.has(f.code) || READONLY.has(f.name)) {
+      row.insertAdjacentHTML("beforeend", `<span class="chip">${esc(VALUE_HE[String(cur)] || String(cur ?? "—"))}</span>`);
+    } else if (f.type === "Boolean") {
       row.insertAdjacentHTML("beforeend", `<label class="switch"><input type="checkbox" ${cur ? "checked" : ""}><span></span></label>`);
       input = row.querySelector("input");
       input.onchange = () => sendSetting(f.code, input.checked, input);
@@ -161,7 +186,7 @@ async function loadSensors() {
   const ul = $("sensors");
   try {
     const subs = await api("GET", `/v1.0/devices/${devId}/sub-devices`);
-    if (!subs.length) { ul.innerHTML = '<li class="muted">אין גלאים מחוברים דרך הענן</li>'; return; }
+    if (!subs.length) { ul.innerHTML = '<li class="muted">הגלאים מחוברים ברדיו ישירות ליחידה, ו-Tuya לא חושפת אותם כמכשירים נפרדים. התראות מהגלאים מופיעות ביומן האירועים.</li>'; return; }
     ul.innerHTML = "";
     for (const s of subs) {
       const li = document.createElement("li");
@@ -199,8 +224,9 @@ async function loadLogs() {
     if (!logs.length) { ul.innerHTML = '<li class="muted">אין אירועים בשבוע האחרון</li>'; return; }
     ul.innerHTML = logs.map((l) => {
       const t = new Date(l.event_time).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" });
-      const val = l.code === "master_mode" ? MODE_HE[l.value] || l.value : decodeMaybe(l.value);
-      return `<li><span>${esc(LABELS[l.code] || (l.code === "master_mode" ? "שינוי מצב" : l.code))}: ${esc(val)}</span><span class="muted">${t}</span></li>`;
+      const raw = decodeMaybe(l.value);
+      const val = VALUE_HE[raw] || heMsg(raw);
+      return `<li><span>${esc(LABELS[l.code] || l.code)}: ${esc(val)}</span><span class="muted">${t}</span></li>`;
     }).join("");
   } catch (e) { ul.innerHTML = `<li class="muted">${esc(e.message)}</li>`; }
 }
