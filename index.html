@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>אזעקה · אבן יהודה</title>
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <header>
+    <h1>🛡️ אזעקה</h1>
+    <button id="btnOut" class="ghost" hidden>יציאה</button>
+  </header>
+
+  <main>
+    <section id="login" class="card center" hidden>
+      <p>כניסה עם חשבון Google המורשה</p>
+      <button id="btnLogin" class="primary">התחברות עם Google</button>
+      <p id="loginErr" class="err"></p>
+    </section>
+
+    <section id="app" hidden>
+      <div id="msg" class="msg" hidden></div>
+
+      <div class="card" id="statusCard">
+        <div class="row">
+          <div>
+            <div class="label">מצב נוכחי</div>
+            <div id="modeNow" class="mode-now">—</div>
+          </div>
+          <div class="end">
+            <span id="online" class="chip">…</span>
+            <button id="btnRefresh" class="ghost" title="רענון">⟳</button>
+          </div>
+        </div>
+        <div id="alarmBanner" class="alarm-banner" hidden>🚨 אזעקה פעילה</div>
+        <div class="modes">
+          <button data-mode="arm" class="mode arm">🔒<span>דריכה מלאה</span></button>
+          <button data-mode="home" class="mode home">🏠<span>דריכת בית</span></button>
+          <button data-mode="disarm" class="mode disarm">🔓<span>נטרול</span></button>
+          <button data-mode="sos" class="mode sos">🆘<span>מצוקה</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>גלאים</h2>
+        <ul id="sensors" class="list"><li class="muted">טוען…</li></ul>
+      </div>
+
+      <div class="card">
+        <h2>הגדרות היחידה</h2>
+        <div id="settings"><p class="muted">טוען…</p></div>
+      </div>
+
+      <div class="card">
+        <h2>אירועים אחרונים</h2>
+        <ul id="logs" class="list small"><li class="muted">טוען…</li></ul>
+      </div>
+
+      <details class="card">
+        <summary>מכשיר ופרטים טכניים</summary>
+        <label>מכשיר: <select id="devSel"></select></label>
+        <pre id="raw"></pre>
+      </details>
+    </section>
+  </main>
+
+  <script type="module" src="app.js?v=1"></script>
+</body>
+</html>

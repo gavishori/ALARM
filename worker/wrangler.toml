@@ -1,0 +1,14 @@
+name = "alarm-tuya"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Tuya data center for Israel/Europe accounts (Central Europe)
+TUYA_HOST = "https://openapi.tuyaeu.com"
+FIREBASE_PROJECT = "alarm-eba80"
+OWNER_EMAIL = "gavishori@gmail.com"
+ALLOWED_ORIGINS = "https://gavishori.github.io,http://localhost:5190,http://127.0.0.1:5190"
+
+# Secrets (set with `npx wrangler secret put <NAME>`, never in this file):
+#   TUYA_ID      - Tuya Cloud project Access ID
+#   TUYA_SECRET  - Tuya Cloud project Access Secret
