@@ -20,3 +20,11 @@ ALLOWED_ORIGINS = "https://gavishori.github.io,http://localhost:5220,http://127.
 
 [triggers]
 crons = ["* * * * *"]
+
+[[durable_objects.bindings]]
+name = "LISTENER"
+class_name = "TuyaListener"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TuyaListener"]

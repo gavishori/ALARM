@@ -1,3 +1,4 @@
+export { TuyaListener } from "./listener.js";
 // ALARM worker: signs requests to the Tuya Cloud API on behalf of the page.
 // Only the owner's Firebase (Google) sign-in may use it. Tuya keys stay here as secrets.
 
@@ -125,7 +126,12 @@ class HttpError extends Error { constructor(status, msg) { super(msg); this.stat
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(watch(env, event.scheduledTime, false));
+    ctx.waitUntil((async () => {
+      // Keep the instant listener connected; fall back to polling the cloud log while it is down.
+      const stub = env.LISTENER.get(env.LISTENER.idFromName("alarm"));
+      const info = await (await stub.fetch("https://listener/ensure")).json().catch(() => ({}));
+      if (!info.connected) await watch(env, event.scheduledTime, false);
+    })());
   },
   async fetch(req, env) {
     const origins = env.ALLOWED_ORIGINS.split(",");
@@ -145,6 +151,11 @@ export default {
         if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");
         const mins = Number(url.searchParams.get("mins") || 0);
         return json(await watch(env, Date.now() - mins * 60_000, true));
+      }
+      if (url.pathname === "/listener") {
+        if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");
+        const stub = env.LISTENER.get(env.LISTENER.idFromName("alarm"));
+        return json(await (await stub.fetch("https://listener/ensure")).json());
       }
       if (url.pathname === "/health") return json({ ok: true, tuyaKeys: !!(env.TUYA_ID && env.TUYA_SECRET) });
       if (!url.pathname.startsWith("/api/")) throw new HttpError(404, "not found");
