@@ -206,5 +206,6 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "test":
         settings.update(fetch_settings() if "--remote" in sys.argv else {})
         ring(True)
+        time.sleep(10)  # let the notification thread finish
     else:
         main()
