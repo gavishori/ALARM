@@ -20,6 +20,7 @@ export class TuyaListener {
     this.ws = null;
     this.info = { connected: false, since: 0, lastMessage: 0, messages: 0, lastError: "", lastEvent: "" };
     this.lastBell = 0;
+    this.born = Date.now();
     // Counters survive restarts, so the cron knows the listener has been delivering.
     state.blockConcurrencyWhile(async () => {
       const saved = await state.storage.get("stats");
@@ -35,7 +36,7 @@ export class TuyaListener {
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/ensure") await this.ensure();
-    return Response.json(this.info);
+    return Response.json({ ...this.info, instanceAge: Date.now() - this.born, lastDown: await this.state.storage.get("lastDown") });
   }
 
   async ensure() {
@@ -54,7 +55,10 @@ export class TuyaListener {
       this.info.since = Date.now();
       this.info.lastError = "";
       ws.addEventListener("message", (e) => this.state.waitUntil(this.onMessage(e.data)));
-      const down = (why) => { this.info.connected = false; this.ws = null; this.info.lastError = why; };
+      const down = (why) => {
+        this.info.connected = false; this.ws = null; this.info.lastError = why;
+        this.state.storage.put("lastDown", { why, at: Date.now(), after: Date.now() - this.info.since });
+      };
       ws.addEventListener("close", (e) => down("closed " + e.code + " " + (e.reason || "")));
       ws.addEventListener("error", () => down("socket error"));
     } catch (e) {
@@ -116,7 +120,7 @@ ${message}`, parse_mode: "HTML" }),
     if (isBell) {
       if (Date.now() - this.lastBell < 5000) return; // one press reports twice
       this.lastBell = Date.now();
-      await this.notify("🔔 מצלצלים בדלת", time, "phone");
+      await this.notify("🚪 דלת הכניסה נפתחה", time, "phone");
     } else if (code === "master_state" && value === "alarm") {
       await this.notify("🚨 אזעקה בבית!", time, "alarm_push");
     }

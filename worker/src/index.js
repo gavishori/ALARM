@@ -105,7 +105,7 @@ async function watch(env, now, dry) {
   const alive = await fsDoc(env, "bell/alive");
   const pcOn = alive.ts && now - alive.ts < 150_000;
   const set = { phone: true, alarm_push: true, ...(await fsDoc(env, "bell/settings")) };
-  const start = now - 90_000, end = now - 30_000; // logs arrive with a short delay
+  const start = now - 70_000, end = now - 10_000; // logs reach the cloud within a few seconds
   const path = `/v1.0/devices/${env.DEVICE_ID}/logs?` + q({ type: 7, start_time: start, end_time: end, size: 100 });
   const res = await tuya(env, "GET", path);
   const logs = (res.result && res.result.logs) || [];
@@ -115,7 +115,7 @@ async function watch(env, now, dry) {
   const t = (l) => new Date(l.event_time).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem" });
   const out = { pcOn, bell: bell.length, alarm: alarm.length, logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };
   if (pcOn || dry) return out;
-  if (bell.length && set.phone) await push(env, "🔔 מצלצלים בדלת", t(bell[0]), 4, "bell");
+  if (bell.length && set.phone) await push(env, "🚪 דלת הכניסה נפתחה", t(bell[0]), 4, "bell");
   if (alarm.length && set.alarm_push) await push(env, "🚨 אזעקה בבית!", t(alarm[0]), 5, "rotating_light");
   return out;
 }
@@ -152,6 +152,14 @@ export default {
         if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");
         const mins = Number(url.searchParams.get("mins") || 0);
         return json(await watch(env, Date.now() - mins * 60_000, true));
+      }
+      if (url.pathname === "/tuya-debug") {
+        // Owner-only diagnostics (BELL_KEY): signed Tuya call for a fixed set of read/config paths.
+        if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");
+        const p = url.searchParams.get("path") || "";
+        if (!/^\/v1\.0\/(devices\/[^/]+$|iot-03\/open-hub\/access-config$|iot-03\/devices\/[^/]+$)/.test(p)) throw new HttpError(403, "path");
+        const body = req.method === "POST" ? await req.json() : null;
+        return json(await tuya(env, req.method, p, body));
       }
       if (url.pathname === "/listener") {
         if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");

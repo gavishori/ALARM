@@ -152,7 +152,7 @@ def ring(test=False):
     vol = settings["quiet_volume"] if quiet else settings["volume"]
     log("ring", "(test)" if test else "", "tone", settings["tone"], "vol", vol, "quiet" if quiet else "")
     if settings.get("phone"):
-        threading.Thread(target=lambda: push("🔔 מצלצלים בדלת" + (" (בדיקה)" if test else ""),
+        threading.Thread(target=lambda: push("🚪 דלת הכניסה נפתחה" + (" (בדיקה)" if test else ""),
                                              datetime.now().strftime("%H:%M:%S"), 4, "bell", snapshot()), daemon=True).start()
     if settings.get("pc_sound") and vol > 0:
         play(settings["tone"], vol)
