@@ -12,7 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "config.local.json"), encoding="utf-8"))
 SETTINGS_URL = ("https://firestore.googleapis.com/v1/projects/alarm-eba80/databases/(default)"
                 "/documents/bell/settings?key=" + CFG["firebase_api_key"])
-DEFAULTS = {"tone": "dingdong", "volume": 80, "phone": True, "alarm_push": True,
+DEFAULTS = {"pc_sound": False, "tone": "dingdong", "volume": 80, "phone": True, "alarm_push": True,
             "quiet_from": "22:00", "quiet_to": "07:00", "quiet_volume": 25, "camera": "", "test": 0}
 DP_BELL, DP_MODE, DP_STATE, DP_MSG = "44", "1", "32", "26"
 
@@ -130,7 +130,7 @@ def ring(test=False):
     if settings.get("phone"):
         threading.Thread(target=lambda: push("🔔 מצלצלים בדלת" + (" (בדיקה)" if test else ""),
                                              datetime.now().strftime("%H:%M:%S"), 4, "bell", snapshot()), daemon=True).start()
-    if vol > 0:
+    if settings.get("pc_sound") and vol > 0:
         play(settings["tone"], vol)
 
 

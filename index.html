@@ -48,6 +48,13 @@
       <details class="card fold">
         <summary><h2>🔔 פעמון</h2></summary>
         <div id="bell">
+          <div class="setting"><span>התראה לטלפון</span><label class="switch"><input id="bPhone" type="checkbox"><span></span></label></div>
+          <div class="setting"><span>התראה לטלפון באזעקה</span><label class="switch"><input id="bAlarm" type="checkbox"><span></span></label></div>
+          <div class="setting"><span>תמונה מהמצלמה</span><select id="bCam">
+            <option value="">בלי</option><option value="cam1">מצלמה 1</option><option value="cam2">מצלמה 2</option>
+            <option value="cam3">מצלמה 3</option><option value="cam4">מצלמה 4</option></select></div>
+          <div class="setting"><span>צלצול גם במחשב הבית</span><label class="switch"><input id="bPc" type="checkbox"><span></span></label></div>
+          <div id="pcRows">
           <div class="setting"><span>צלצול</span>
             <span class="end"><select id="bTone">
               <option value="dingdong">דינג-דונג</option><option value="westminster">פעמוני מגדל</option>
@@ -57,12 +64,8 @@
           <div class="setting"><span>עוצמה</span><span class="end"><input id="bVol" type="range" min="0" max="100" step="5"><b id="bVolT"></b></span></div>
           <div class="setting"><span>שעות שקט</span><span class="end"><input id="bQFrom" type="time"> עד <input id="bQTo" type="time"></span></div>
           <div class="setting"><span>עוצמה בשעות שקט</span><span class="end"><input id="bQVol" type="range" min="0" max="100" step="5"><b id="bQVolT"></b></span></div>
-          <div class="setting"><span>התראה לטלפון</span><label class="switch"><input id="bPhone" type="checkbox"><span></span></label></div>
-          <div class="setting"><span>התראה לטלפון באזעקה</span><label class="switch"><input id="bAlarm" type="checkbox"><span></span></label></div>
-          <div class="setting"><span>תמונה מהמצלמה</span><select id="bCam">
-            <option value="">בלי</option><option value="cam1">מצלמה 1</option><option value="cam2">מצלמה 2</option>
-            <option value="cam3">מצלמה 3</option><option value="cam4">מצלמה 4</option></select></div>
-          <div class="setting"><span class="muted small">הצלצול מתנגן במחשב הבית</span><button id="bTest">🔔 צלצול בדיקה</button></div>
+          </div>
+          <div class="setting"><span class="muted small">שולח התראת בדיקה (ובמחשב, אם מופעל)</span><button id="bTest">🔔 צלצול בדיקה</button></div>
         </div>
       </details>
 
@@ -89,7 +92,7 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 <script>/* גביש: כפתור קבוע בפינה השמאלית העליונה, מבודד מה-CSS של הדף */(function(){if(document.getElementById("gavish-hub"))return;var h=document.createElement("div");h.id="gavish-hub";h.style.cssText="position:fixed!important;top:10px!important;left:10px!important;width:36px!important;height:36px!important;z-index:2147483000!important;margin:0!important;padding:0!important;display:block!important;transform:none!important;";var r=h.attachShadow({mode:"open"});r.innerHTML='<style>a{display:flex;align-items:center;justify-content:center;width:36px;height:36px;box-sizing:border-box;font-size:19px;line-height:1;text-decoration:none;background:rgba(15,31,61,.84);border:1px solid rgba(255,255,255,.32);border-radius:11px;box-shadow:0 4px 14px rgba(0,0,0,.3);font-family:sans-serif}a:hover{background:rgba(40,70,130,.95)}</style><a href="https://gavishori.github.io/" title="גביש - כל הפרויקטים" aria-label="גביש - כל הפרויקטים">💎</a>';document.body.insertBefore(h,document.body.firstChild)})();</script>
 </body>
 </html>

@@ -270,8 +270,8 @@ onAuthStateChanged(auth, (u) => {
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore();
 const bellRef = doc(db, "bell", "settings");
-const BELL_DEFAULTS = { tone: "dingdong", volume: 80, phone: true, alarm_push: true, quiet_from: "22:00", quiet_to: "07:00", quiet_volume: 25, camera: "" };
-const bellIds = { tone: "bTone", volume: "bVol", quiet_from: "bQFrom", quiet_to: "bQTo", quiet_volume: "bQVol", phone: "bPhone", alarm_push: "bAlarm", camera: "bCam" };
+const BELL_DEFAULTS = { pc_sound: false, tone: "dingdong", volume: 80, phone: true, alarm_push: true, quiet_from: "22:00", quiet_to: "07:00", quiet_volume: 25, camera: "" };
+const bellIds = { pc_sound: "bPc", tone: "bTone", volume: "bVol", quiet_from: "bQFrom", quiet_to: "bQTo", quiet_volume: "bQVol", phone: "bPhone", alarm_push: "bAlarm", camera: "bCam" };
 
 async function loadBell() {
   let s = { ...BELL_DEFAULTS };
@@ -282,6 +282,7 @@ async function loadBell() {
     if (el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k];
   }
   $("bVolT").textContent = $("bVol").value; $("bQVolT").textContent = $("bQVol").value;
+  $("pcRows").hidden = !$("bPc").checked;
 }
 async function saveBell(patch, note = "הגדרת הפעמון נשמרה") {
   try { await setDoc(bellRef, patch, { merge: true }); showMsg(note); }
@@ -291,8 +292,9 @@ for (const [k, id] of Object.entries(bellIds)) {
   const el = $(id);
   el.addEventListener("change", () => saveBell({ [k]: el.type === "checkbox" ? el.checked : el.type === "range" ? Number(el.value) : el.value }));
 }
+$("bPc").addEventListener("change", () => ($("pcRows").hidden = !$("bPc").checked));
 $("bVol").oninput = () => ($("bVolT").textContent = $("bVol").value);
 $("bQVol").oninput = () => ($("bQVolT").textContent = $("bQVol").value);
 $("bPreview").onclick = () => { const a = new Audio(`doorbell/sounds/${$("bTone").value}.wav`); a.volume = $("bVol").value / 100; a.play(); };
-$("bTest").onclick = () => saveBell({ test: Date.now() }, "נשלח צלצול בדיקה למחשב הבית (עד 15 שניות)");
+$("bTest").onclick = () => saveBell({ test: Date.now() }, "נשלחה התראת בדיקה (עד 15 שניות)");
 onAuthStateChanged(auth, (u) => { if (u) loadBell(); });
