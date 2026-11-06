@@ -1,7 +1,7 @@
 # One-time Telegram setup: asks for the bot token (hidden input), finds your chat,
 # saves both locally (config.local.json, not in git) and as Cloudflare Worker secrets,
 # then sends a test message.
-import getpass, json, os, subprocess, sys, time, urllib.request
+import getpass, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG_PATH = os.path.join(HERE, "config.local.json")
@@ -12,13 +12,36 @@ def tg(token, method, payload=None):
     data = json.dumps(payload).encode("utf-8") if payload else None
     req = urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}", data=data,
                                  headers={"Content-Type": "application/json"})
-    return json.load(urllib.request.urlopen(req, timeout=40))
+    try:
+        return json.load(urllib.request.urlopen(req, timeout=40))
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": e.code}
 
 
-token = getpass.getpass("Paste the bot token from BotFather (hidden) and press Enter: ").strip()
+TOKEN_RE = re.compile(r"\d{6,}:[A-Za-z0-9_-]{30,}")
+
+
+def clipboard():
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard"], capture_output=True, text=True).stdout
+        m = TOKEN_RE.search(out or "")
+        return m.group(0) if m else ""
+    except Exception:
+        return ""
+
+
+token = clipboard()
+if token:
+    print("Found a bot token in the clipboard:", token[:6] + "..." + token[-4:])
+else:
+    raw = getpass.getpass("Copy the token from BotFather, then press Enter here (or paste it, hidden): ")
+    m = TOKEN_RE.search(raw) or TOKEN_RE.search(clipboard() or "")
+    token = m.group(0) if m else (clipboard() or "")
+if not token:
+    sys.exit("No bot token found. Copy the token from BotFather (the long 123456789:AAH... line) and run again.")
 me = tg(token, "getMe")
 if not me.get("ok"):
-    sys.exit("Token was not accepted by Telegram.")
+    sys.exit("Telegram did not accept this token (" + token[:6] + "..." + token[-4:] + "). Copy it again from BotFather and rerun.")
 name = me["result"]["username"]
 print(f"\nBot OK: @{name}")
 print(f"Now open Telegram, search @{name}, press START (or send any message). Waiting...")
