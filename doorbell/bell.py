@@ -18,6 +18,7 @@ DP_BELL, DP_MODE, DP_STATE, DP_MSG = "44", "1", "32", "26"
 
 settings = dict(DEFAULTS)
 last_ring = 0.0
+connected = False
 
 
 def log(*a):
@@ -38,6 +39,17 @@ def fetch_settings():
     return out
 
 
+ALIVE_URL = SETTINGS_URL.replace("/bell/settings?", "/bell/alive?")
+
+
+def heartbeat():
+    # Tells the cloud watcher the PC is handling notifications (avoids duplicate pushes).
+    body = json.dumps({"fields": {"ts": {"integerValue": str(int(time.time() * 1000))}}}).encode()
+    req = urllib.request.Request(ALIVE_URL, data=body, method="PATCH", headers={"Content-Type": "application/json"})
+    try: urllib.request.urlopen(req, timeout=10).read()
+    except Exception: pass
+
+
 def settings_loop():
     global settings
     first = True
@@ -51,6 +63,7 @@ def settings_loop():
             first = False
         except Exception as e:
             if first: log("settings: using defaults (", e, ")")
+        if connected: heartbeat()
         time.sleep(15)
 
 
@@ -136,6 +149,7 @@ def on_dps(dps):
 
 
 def main():
+    global connected
     threading.Thread(target=settings_loop, daemon=True).start()
     log("doorbell service starting")
     while True:
@@ -145,6 +159,7 @@ def main():
             st = d.status()
             if not st or "dps" not in st: raise RuntimeError(st)
             log("connected to alarm, mode", st["dps"].get(DP_MODE))
+            connected = True
             beat = time.time()
             while True:
                 m = d.receive()
@@ -153,6 +168,7 @@ def main():
                 if time.time() - beat > 9:
                     d.heartbeat(nowait=True); beat = time.time()
         except Exception as e:
+            connected = False
             log("connection lost:", e, "- retrying in 10s")
             time.sleep(10)
 

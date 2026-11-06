@@ -74,11 +74,50 @@ function sortedPath(url) {
   return url.pathname.replace(/^\/api/, "") + (qs ? "?" + qs : "");
 }
 
+
+// ---------- Cloud watcher (runs every minute) ----------
+// Phone notifications when the home PC service is off: reads the alarm's cloud log for
+// doorbell presses (sos_state) and alarms (master_state=alarm) and pushes them to ntfy.
+const FS = (env, path) => `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT}/databases/(default)/documents/${path}?key=${env.FIREBASE_API_KEY}`;
+async function fsDoc(env, path) {
+  try {
+    const r = await fetch(FS(env, path));
+    if (!r.ok) return {};
+    const f = (await r.json()).fields || {};
+    return Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.integerValue !== undefined ? Number(v.integerValue) : Object.values(v)[0]]));
+  } catch { return {}; }
+}
+function q(params) { return Object.keys(params).sort().map((k) => k + "=" + params[k]).join("&"); }
+async function push(env, title, message, priority, tags) {
+  if (!env.NTFY_TOPIC) return;
+  await fetch("https://ntfy.sh/", { method: "POST", body: JSON.stringify({ topic: env.NTFY_TOPIC, title, message, priority, tags: [tags] }) });
+}
+async function watch(env, now, dry) {
+  const alive = await fsDoc(env, "bell/alive");
+  const pcOn = alive.ts && now - alive.ts < 150_000;
+  const set = { phone: true, alarm_push: true, ...(await fsDoc(env, "bell/settings")) };
+  const start = now - 90_000, end = now - 30_000; // logs arrive with a short delay
+  const path = `/v1.0/devices/${env.DEVICE_ID}/logs?` + q({ type: 7, start_time: start, end_time: end, size: 100 });
+  const res = await tuya(env, "GET", path);
+  const logs = (res.result && res.result.logs) || [];
+  const bell = logs.filter((l) => l.code === "sos_state" && String(l.value) === "true");
+  const alarm = logs.filter((l) => l.code === "master_state" && l.value === "alarm");
+  const t = (l) => new Date(l.event_time).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem" });
+  const out = { pcOn, bell: bell.length, alarm: alarm.length, logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };
+  if (pcOn || dry) return out;
+  if (bell.length && set.phone) await push(env, "🔔 מצלצלים בדלת", t(bell[0]), 4, "bell");
+  if (alarm.length && set.alarm_push) await push(env, "🚨 אזעקה בבית!", t(alarm[0]), 5, "rotating_light");
+  return out;
+}
+
 const ALLOWED = [/^\/v1\.0\/iot-03\/devices\//, /^\/v1\.0\/devices\//, /^\/v2\.0\/cloud\/thing\//, /^\/v1\.0\/users\//, /^\/v1\.0\/iot-01\/associated-users\/devices/];
 
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(watch(env, event.scheduledTime, false));
+  },
   async fetch(req, env) {
     const origins = env.ALLOWED_ORIGINS.split(",");
     const origin = req.headers.get("Origin") || "";
@@ -93,6 +132,11 @@ export default {
 
     try {
       const url = new URL(req.url);
+      if (url.pathname === "/watch-test") {
+        if (!env.BELL_KEY || url.searchParams.get("key") !== env.BELL_KEY) throw new HttpError(403, "no");
+        const mins = Number(url.searchParams.get("mins") || 0);
+        return json(await watch(env, Date.now() - mins * 60_000, true));
+      }
       if (url.pathname === "/health") return json({ ok: true, tuyaKeys: !!(env.TUYA_ID && env.TUYA_SECRET) });
       if (!url.pathname.startsWith("/api/")) throw new HttpError(404, "not found");
       await verifyUser(req, env);

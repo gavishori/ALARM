@@ -8,6 +8,11 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.token.email == "gavishori@gmail.com"
                    && request.auth.token.email_verified == true;
     }
+    // Heartbeat from the home doorbell service, so the cloud watcher stays quiet while the PC handles it.
+    match /bell/alive {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(["ts"]) && request.resource.data.ts is int;
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }
