@@ -54,3 +54,10 @@ button.ghost { background: transparent; }
 details summary { cursor: pointer; color: var(--muted); }
 pre { white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--muted); max-height: 300px; overflow: auto; direction: ltr; text-align: left; }
 @media (max-width: 480px) { .modes { grid-template-columns: repeat(2, 1fr); } }
+
+.fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary h2 { margin: 0; }
+.fold > summary::after { content: "▾"; color: var(--muted); font-size: 18px; transition: transform .2s; }
+.fold[open] > summary::after { transform: rotate(180deg); }
+.fold[open] > summary { margin-bottom: 10px; }
