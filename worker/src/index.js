@@ -100,7 +100,8 @@ async function watch(env, now, dry) {
   const path = `/v1.0/devices/${env.DEVICE_ID}/logs?` + q({ type: 7, start_time: start, end_time: end, size: 100 });
   const res = await tuya(env, "GET", path);
   const logs = (res.result && res.result.logs) || [];
-  const bell = logs.filter((l) => l.code === "sos_state" && String(l.value) === "true");
+  const DOORBELL_MSG = "AEQAbwBvAHIAYgBlAGwAbA=="; // "Doorbell" (UTF-16BE, base64)
+  const bell = logs.filter((l) => (l.code === "sos_state" && String(l.value) === "true") || (l.code === "alarm_msg" && l.value === DOORBELL_MSG));
   const alarm = logs.filter((l) => l.code === "master_state" && l.value === "alarm");
   const t = (l) => new Date(l.event_time).toLocaleTimeString("he-IL", { timeZone: "Asia/Jerusalem" });
   const out = { pcOn, bell: bell.length, alarm: alarm.length, logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };

@@ -143,8 +143,12 @@ def on_dps(dps):
             if settings.get("alarm_push"):
                 push("🚨 אזעקה בבית!", datetime.now().strftime("%H:%M:%S"), 5, "rotating_light", snapshot())
         elif k == DP_MSG and isinstance(v, str):
-            try: log("message:", base64.b64decode(v).decode("utf-16be"))
-            except Exception: pass
+            try: msg = base64.b64decode(v).decode("utf-16be")
+            except Exception: continue
+            log("message:", msg)
+            # The bell is not always re-reported on DP 44 (value already true), but the message always comes.
+            if msg.strip().lower() == "doorbell":
+                threading.Thread(target=ring, daemon=True).start()
         elif k == DP_MODE:
             log("mode:", v)
 
