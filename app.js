@@ -265,3 +265,34 @@ onAuthStateChanged(auth, (u) => {
   if (u) { loadAll(); clearInterval(window._poll); window._poll = setInterval(() => !document.hidden && loadAll(), 30000); }
   else clearInterval(window._poll);
 });
+
+// ---------- Doorbell settings (read by the home doorbell service) ----------
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const db = getFirestore();
+const bellRef = doc(db, "bell", "settings");
+const BELL_DEFAULTS = { tone: "dingdong", volume: 80, phone: true, alarm_push: true, quiet_from: "22:00", quiet_to: "07:00", quiet_volume: 25, camera: "" };
+const bellIds = { tone: "bTone", volume: "bVol", quiet_from: "bQFrom", quiet_to: "bQTo", quiet_volume: "bQVol", phone: "bPhone", alarm_push: "bAlarm", camera: "bCam" };
+
+async function loadBell() {
+  let s = { ...BELL_DEFAULTS };
+  try { const snap = await getDoc(bellRef); if (snap.exists()) s = { ...s, ...snap.data() }; }
+  catch (e) { showMsg("הגדרות הפעמון לא נטענו: " + e.message, true); }
+  for (const [k, id] of Object.entries(bellIds)) {
+    const el = $(id);
+    if (el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k];
+  }
+  $("bVolT").textContent = $("bVol").value; $("bQVolT").textContent = $("bQVol").value;
+}
+async function saveBell(patch, note = "הגדרת הפעמון נשמרה") {
+  try { await setDoc(bellRef, patch, { merge: true }); showMsg(note); }
+  catch (e) { showMsg("שמירה נכשלה: " + e.message, true); }
+}
+for (const [k, id] of Object.entries(bellIds)) {
+  const el = $(id);
+  el.addEventListener("change", () => saveBell({ [k]: el.type === "checkbox" ? el.checked : el.type === "range" ? Number(el.value) : el.value }));
+}
+$("bVol").oninput = () => ($("bVolT").textContent = $("bVol").value);
+$("bQVol").oninput = () => ($("bQVolT").textContent = $("bQVol").value);
+$("bPreview").onclick = () => { const a = new Audio(`doorbell/sounds/${$("bTone").value}.wav`); a.volume = $("bVol").value / 100; a.play(); };
+$("bTest").onclick = () => saveBell({ test: Date.now() }, "נשלח צלצול בדיקה למחשב הבית (עד 15 שניות)");
+onAuthStateChanged(auth, (u) => { if (u) loadBell(); });
