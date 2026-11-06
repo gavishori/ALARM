@@ -15,6 +15,7 @@ ALLOWED_ORIGINS = "https://gavishori.github.io,http://localhost:5220,http://127.
 #   TUYA_ID      - Tuya Cloud project Access ID
 #   TUYA_SECRET  - Tuya Cloud project Access Secret
 #   NTFY_TOPIC   - private ntfy.sh topic for phone notifications
+#   TG_TOKEN     - Telegram bot token; TG_CHAT - chat id to notify
 #   BELL_KEY     - key for the /watch-test diagnostics endpoint
 
 [triggers]

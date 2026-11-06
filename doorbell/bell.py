@@ -91,18 +91,42 @@ def play(tone, volume):
 
 
 # ---------- phone ----------
-def push(title, message, priority=4, tags="bell", image=None):
-    topic = CFG.get("ntfy_topic")
-    if not topic: return
-    headers = {"Title": Header(title, "utf-8").encode(), "Priority": str(priority), "Tags": tags}
+def telegram(title, message, image=None):
+    token, chat = CFG["tg_token"], CFG["tg_chat"]
+    text = f"<b>{title}</b>\n{message}"
     if image:
-        headers["Filename"] = "door.jpg"
-        headers["Message"] = Header(message, "utf-8").encode()
-        data = image
+        boundary = "----alarm" + str(int(time.time() * 1000))
+        crlf = "\r\n"
+        parts = []
+        for k, v in (("chat_id", str(chat)), ("caption", text), ("parse_mode", "HTML")):
+            parts.append(f'--{boundary}{crlf}Content-Disposition: form-data; name="{k}"{crlf}{crlf}{v}{crlf}'.encode("utf-8"))
+        parts.append(f'--{boundary}{crlf}Content-Disposition: form-data; name="photo"; filename="door.jpg"{crlf}'
+                     f'Content-Type: image/jpeg{crlf}{crlf}'.encode() + image + crlf.encode())
+        parts.append(f"--{boundary}--{crlf}".encode())
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendPhoto", data=b"".join(parts),
+                                     headers={"Content-Type": "multipart/form-data; boundary=" + boundary})
     else:
-        data = message.encode("utf-8")
-    req = urllib.request.Request("https://ntfy.sh/" + topic, data=data, headers=headers, method="PUT" if image else "POST")
+        body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML"}).encode("utf-8")
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=body,
+                                     headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=20).read()
+
+
+def push(title, message, priority=4, tags="bell", image=None):
     try:
+        if CFG.get("tg_token") and CFG.get("tg_chat"):
+            telegram(title, message, image)
+            return
+        topic = CFG.get("ntfy_topic")
+        if not topic: return
+        headers = {"Title": Header(title, "utf-8").encode(), "Priority": str(priority), "Tags": tags}
+        if image:
+            headers["Filename"] = "door.jpg"
+            headers["Message"] = Header(message, "utf-8").encode()
+            data = image
+        else:
+            data = message.encode("utf-8")
+        req = urllib.request.Request("https://ntfy.sh/" + topic, data=data, headers=headers, method="PUT" if image else "POST")
         urllib.request.urlopen(req, timeout=15).read()
     except Exception as e:
         log("push failed:", e)

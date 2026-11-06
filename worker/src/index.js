@@ -89,6 +89,14 @@ async function fsDoc(env, path) {
 }
 function q(params) { return Object.keys(params).sort().map((k) => k + "=" + params[k]).join("&"); }
 async function push(env, title, message, priority, tags) {
+  if (env.TG_TOKEN && env.TG_CHAT) {
+    await fetch(`https://api.telegram.org/bot${env.TG_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: env.TG_CHAT, text: `<b>${title}</b>
+${message}`, parse_mode: "HTML" }),
+    });
+    return;
+  }
   if (!env.NTFY_TOPIC) return;
   await fetch("https://ntfy.sh/", { method: "POST", body: JSON.stringify({ topic: env.NTFY_TOPIC, title, message, priority, tags: [tags] }) });
 }
