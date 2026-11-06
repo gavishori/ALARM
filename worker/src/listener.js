@@ -20,6 +20,16 @@ export class TuyaListener {
     this.ws = null;
     this.info = { connected: false, since: 0, lastMessage: 0, messages: 0, lastError: "", lastEvent: "" };
     this.lastBell = 0;
+    // Counters survive restarts, so the cron knows the listener has been delivering.
+    state.blockConcurrencyWhile(async () => {
+      const saved = await state.storage.get("stats");
+      if (saved) Object.assign(this.info, { lastMessage: saved.lastMessage, messages: saved.messages, lastEvent: saved.lastEvent });
+    });
+  }
+
+  // Wakes the object every 20 s so it is never evicted and the socket stays open.
+  async alarm() {
+    await this.ensure();
   }
 
   async fetch(req) {
@@ -29,6 +39,7 @@ export class TuyaListener {
   }
 
   async ensure() {
+    await this.state.storage.setAlarm(Date.now() + 20_000);
     if (this.ws && this.info.connected) return;
     try {
       const id = this.env.TUYA_ID;
@@ -55,6 +66,7 @@ export class TuyaListener {
   async onMessage(raw) {
     this.info.lastMessage = Date.now();
     this.info.messages++;
+    this.state.storage.put("stats", { lastMessage: this.info.lastMessage, messages: this.info.messages, lastEvent: this.info.lastEvent });
     let msg;
     try { msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw)); } catch { return; }
     if (msg.messageId) this.ws?.send(JSON.stringify({ messageId: msg.messageId })); // ack
