@@ -130,7 +130,8 @@ export default {
       // Keep the instant listener connected; fall back to polling the cloud log while it is down.
       const stub = env.LISTENER.get(env.LISTENER.idFromName("alarm"));
       const info = await (await stub.fetch("https://listener/ensure")).json().catch(() => ({}));
-      if (!info.connected) await watch(env, event.scheduledTime, false);
+      // Until Tuya has actually delivered a message, keep polling too (e.g. no messaging rule yet).
+      if (!info.connected || !info.messages) await watch(env, event.scheduledTime, false);
     })());
   },
   async fetch(req, env) {
