@@ -19,7 +19,7 @@ const MODE_HE = { arm: "דרוכה", armed: "דרוכה", home: "דריכת בי
 // Tuya's own names for this host are partly Chinese; translate by name too.
 const NAME_HE = {
   "设置密码": "סיסמת יחידה", "未接听重复拨打次数": "חיוגים חוזרים כשאין מענה", "主机状态": "מצב היחידה",
-  "恢复出厂设置": "איפוס להגדרות יצרן", "子设备管理": "ניהול גלאים", "紧急状态": "מצב חירום",
+  "恢复出厂设置": "איפוס להגדרות יצרן", "子设备管理": "ניהול גלאים", "紧急状态": "פעמון",
 };
 // Never offered as controls: factory reset, raw/password data, and anything that would set off the siren.
 const HIDDEN = new Set(["恢复出厂设置", "设置密码", "子设备管理", "factory_reset", "password", "password_set", "sub_admin", "alarm_call_number", "alarm_sms_number"]);
@@ -31,13 +31,13 @@ const MSG_HE = {
 };
 const heMsg = (v) => MSG_HE[v] || String(v).replace(/\bZone\b/i, "אזור").replace(/\bAlarm\b/i, "אזעקה");
 const LABELS = {
-  delay_set: "השהיית יציאה (שניות)", alarm_delay_time: "השהיית כניסה (שניות)", alarm_time: "משך צפירה (דקות)",
-  switch_alarm_sound: "צפירה", switch_alarm_light: "נורית אזעקה", switch_alarm_sms: "התראת SMS", switch_alarm_call: "חיוג בזמן אזעקה",
+  delay_set: "השהיית דריכה (שניות)", alarm_delay_time: "השהיית אזעקה אחרי זיהוי (שניות)", alarm_time: "משך צפירה (דקות)",
+  switch_alarm_sound: "צפירה", switch_alarm_light: "נעילת מקלדת", switch_alarm_sms: "התראת SMS", switch_alarm_call: "חיוג בזמן אזעקה",
   switch_alarm_propel: "התראה לאפליקציה", switch_mode_sound: "צליל בשינוי מצב", switch_mode_light: "נורית בשינוי מצב",
-  switch_kb_sound: "צליל מקלדת", switch_kb_light: "תאורת מקלדת", switch_low_battery: "התראת סוללה חלשה",
+  switch_kb_sound: "כיבוי מסך אוטומטי", switch_kb_light: "SMS כשהחשמל נופל או חוזר", switch_low_battery: "חיוג כשהחשמל נופל או חוזר",
   alarm_volume_value: "עוצמת צפירה", alarm_volume: "עוצמת צפירה", muffling: "השתקה", alarm_call_number: "מספרי חיוג",
-  alarm_sms_number: "מספרי SMS", switch_mode_dl_sound: "צליל בהשהיה", master_language: "שפה",
-  master_state: "מצב היחידה", alarm_msg: "הודעה", master_mode: "שינוי מצב", sos_state: "מצב חירום",
+  alarm_sms_number: "מספרי SMS", switch_mode_dl_sound: "צפצוף בספירה לאחור", master_language: "שפה",
+  master_state: "מצב היחידה", alarm_msg: "הודעה", master_mode: "שינוי מצב", sos_state: "פעמון",
 };
 const VALUE_HE = { low: "נמוך", middle: "בינוני", high: "גבוה", mute: "מושתק", normal: "רגיל", alarm: "אזעקה", true: "פעיל", false: "כבוי", ...MODE_HE };
 const SENSOR_STATUS = {
