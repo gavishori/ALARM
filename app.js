@@ -55,16 +55,16 @@ function showMsg(text, isErr) {
 }
 
 // ---------- State ----------
-let devId = localStorage.getItem("alarmDev") || "";
+let devId = localStorage.getItem("alarmDev") || "bfb38a8ec85a3ee13fuund";
 let spec = { functions: [], status: [] };
 let status = {};
 
 async function loadDevices() {
-  const res = await api("GET", "/v2.0/cloud/thing/device?page_size=50");
+  const res = await api("GET", "/v2.0/cloud/thing/device?page_size=20");
   const list = Array.isArray(res) ? res : res.list || [];
   const sel = $("devSel");
   sel.innerHTML = list.map((d) => `<option value="${d.id}">${esc(d.customName || d.name)} (${d.category})</option>`).join("");
-  if (!list.find((d) => d.id === devId)) devId = (list.find((d) => d.category === "mal") || list[0] || {}).id || "";
+  if (list.length && !list.find((d) => d.id === devId)) devId = (list.find((d) => d.category === "mal") || list[0] || {}).id || "";
   sel.value = devId;
   if (!devId) throw new Error("לא נמצאו מכשירים בפרויקט Tuya");
 }
@@ -72,7 +72,7 @@ async function loadDevices() {
 async function loadAll() {
   $("btnRefresh").disabled = true;
   try {
-    if (!devId || !$("devSel").options.length) await loadDevices();
+    if (!$("devSel").options.length) await loadDevices().catch((e) => console.warn("device list", e));
     const [info, st, sp] = await Promise.all([
       api("GET", `/v1.0/iot-03/devices/${devId}`),
       api("GET", `/v1.0/iot-03/devices/${devId}/status`),
