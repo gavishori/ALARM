@@ -100,12 +100,8 @@ async function loadAll() {
     api("GET", `/v2.0/cloud/thing/${devId}/model`).then((m) => {
       let props = [];
       try { props = JSON.parse(m.model).services.flatMap((sv) => sv.properties.map((p) => ({ id: p.abilityId, code: p.code, name: p.name, mode: p.accessMode, type: p.typeSpec }))); } catch {}
-      $("raw").textContent = JSON.stringify({ model: props }, null, 1) + "
-
-" + $("raw").textContent;
-    }).catch((e) => { $("raw").textContent = "model: " + e.message + "
-
-" + $("raw").textContent; });
+      $("raw").textContent = JSON.stringify({ model: props }, null, 1) + "\n\n" + $("raw").textContent;
+    }).catch((e) => { $("raw").textContent = "model: " + e.message + "\n\n" + $("raw").textContent; });
     renderStatus(info);
     renderSettings();
     loadSensors();
