@@ -3,7 +3,7 @@
 //  - cron        every minute reads the alarm's cloud log: door opened -> Telegram,
 //                alarm -> starts the repeating alarm loop (listener.js)
 //  - /tg-hook    Telegram button presses (stop the repeating alerts)
-import { tuya, fsDoc, telegram, hhmmss, HttpError } from "./tuya.js";
+import { tuya, fsDoc, telegram, hhmmss, HttpError, deviceStatus } from "./tuya.js";
 export { TuyaListener } from "./listener.js";
 
 const enc = new TextEncoder();
@@ -65,7 +65,18 @@ async function watch(env, now, dry) {
                 logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };
   if (dry) return out;
   if (alarm.length && set.alarm_push) await loop(env).fetch("https://loop/alarm-start?at=" + alarm[0].event_time);
-  if (door.length && set.phone) await telegram(env, "door", "🚪 דלת הכניסה נפתחה", hhmmss(door[0].event_time));
+  // Door alerts only while the system is armed (full or home).
+  if (door.length && set.phone) {
+    const st = await deviceStatus(env).catch(() => null);
+    if (st && (st.master_mode === "arm" || st.master_mode === "home"))
+      await telegram(env, "door", "🚪 דלת הכניסה נפתחה", hhmmss(door[0].event_time) + " · המערכת דרוכה");
+  }
+  // TuyaSmart app notifications follow the mode: on while armed, off while disarmed.
+  const lastMode = modes.length ? modes[modes.length - 1].value : null;
+  if (lastMode) {
+    const want = lastMode !== "disarmed";
+    await tuya(env, "POST", `/v1.0/iot-03/devices/${env.DEVICE_ID}/commands`, { commands: [{ code: "switch_alarm_propel", value: want }] });
+  }
   if (set.mode_push) for (const l of modes) await telegram(env, "door", MODE_MSG[l.value], hhmmss(l.event_time));
   if (set.power_push) {
     for (const l of power) await telegram(env, "door", String(l.value) === "true" ? "🔌 החשמל ליחידה חזר" : "⚡ הפסקת חשמל ביחידה – עובדת על סוללה", hhmmss(l.event_time));
