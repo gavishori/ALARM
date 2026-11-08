@@ -266,35 +266,33 @@ onAuthStateChanged(auth, (u) => {
   else clearInterval(window._poll);
 });
 
-// ---------- Doorbell settings (read by the home doorbell service) ----------
+// ---------- Telegram notification settings (read by the cloud watcher) ----------
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore();
 const bellRef = doc(db, "bell", "settings");
-const BELL_DEFAULTS = { pc_sound: false, tone: "dingdong", volume: 80, phone: true, alarm_push: true, quiet_from: "22:00", quiet_to: "07:00", quiet_volume: 25, camera: "" };
-const bellIds = { pc_sound: "bPc", tone: "bTone", volume: "bVol", quiet_from: "bQFrom", quiet_to: "bQTo", quiet_volume: "bQVol", phone: "bPhone", alarm_push: "bAlarm", camera: "bCam" };
+const BELL_DEFAULTS = { phone: true, alarm_push: true, mode_push: true, power_push: true };
+const bellIds = { phone: "bPhone", alarm_push: "bAlarm", mode_push: "bMode", power_push: "bPower" };
 
 async function loadBell() {
   let s = { ...BELL_DEFAULTS };
   try { const snap = await getDoc(bellRef); if (snap.exists()) s = { ...s, ...snap.data() }; }
-  catch (e) { showMsg("הגדרות הפעמון לא נטענו: " + e.message, true); }
-  for (const [k, id] of Object.entries(bellIds)) {
-    const el = $(id);
-    if (el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k];
-  }
-  $("bVolT").textContent = $("bVol").value; $("bQVolT").textContent = $("bQVol").value;
-  $("pcRows").hidden = !$("bPc").checked;
-}
-async function saveBell(patch, note = "הגדרת הפעמון נשמרה") {
-  try { await setDoc(bellRef, patch, { merge: true }); showMsg(note); }
-  catch (e) { showMsg("שמירה נכשלה: " + e.message, true); }
+  catch (e) { showMsg("הגדרות ההתראות לא נטענו: " + e.message, true); }
+  for (const [k, id] of Object.entries(bellIds)) $(id).checked = !!s[k];
 }
 for (const [k, id] of Object.entries(bellIds)) {
-  const el = $(id);
-  el.addEventListener("change", () => saveBell({ [k]: el.type === "checkbox" ? el.checked : el.type === "range" ? Number(el.value) : el.value }));
+  $(id).addEventListener("change", async () => {
+    try { await setDoc(bellRef, { [k]: $(id).checked }, { merge: true }); showMsg("נשמר"); }
+    catch (e) { showMsg("שמירה נכשלה: " + e.message, true); }
+  });
 }
-$("bPc").addEventListener("change", () => ($("pcRows").hidden = !$("bPc").checked));
-$("bVol").oninput = () => ($("bVolT").textContent = $("bVol").value);
-$("bQVol").oninput = () => ($("bQVolT").textContent = $("bQVol").value);
-$("bPreview").onclick = () => { const a = new Audio(`doorbell/sounds/${$("bTone").value}.wav`); a.volume = $("bVol").value / 100; a.play(); };
-$("bTest").onclick = () => saveBell({ test: Date.now() }, "נשלחה התראת בדיקה (עד 15 שניות)");
+$("bTest").onclick = async () => {
+  $("bTest").disabled = true;
+  try {
+    const r = await fetch(WORKER + "/notify-test", { method: "POST", headers: { Authorization: "Bearer " + (await auth.currentUser.getIdToken()) } });
+    const j = await r.json();
+    if (!j.success) throw new Error(j.msg);
+    showMsg("נשלחה הודעת בדיקה לשני הבוטים");
+  } catch (e) { showMsg("הבדיקה נכשלה: " + e.message, true); }
+  finally { $("bTest").disabled = false; }
+};
 onAuthStateChanged(auth, (u) => { if (u) loadBell(); });

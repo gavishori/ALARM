@@ -47,20 +47,30 @@ const loop = (env) => env.LISTENER.get(env.LISTENER.idFromName("alarm"));
 
 // ---------- Cloud watcher (every minute) ----------
 const DOORBELL_MSG = "AEQAbwBvAHIAYgBlAGwAbA=="; // "Doorbell" (UTF-16BE, base64) - sent when the front door opens
+const MODE_MSG = { arm: "🔒 המערכת נדרכה", home: "🏠 דריכת בית", disarmed: "🔓 המערכת נוטרלה" };
 async function watch(env, now, dry) {
-  const alive = await fsDoc(env, "bell/alive");
-  const pcOn = alive.ts && now - alive.ts < 150_000;
-  const set = { phone: true, alarm_push: true, ...(await fsDoc(env, "bell/settings")) };
+  const set = { phone: true, alarm_push: true, mode_push: true, power_push: true, ...(await fsDoc(env, "bell/settings")) };
   const start = now - 70_000, end = now - 10_000; // logs reach the cloud within a few seconds
-  const path = `/v1.0/devices/${env.DEVICE_ID}/logs?` + q({ type: 7, start_time: start, end_time: end, size: 100 });
+  // type 1 = online, 2 = offline, 7 = data report
+  const path = `/v1.0/devices/${env.DEVICE_ID}/logs?` + q({ type: "1,2,7", start_time: start, end_time: end, size: 100 });
   const res = await tuya(env, "GET", path);
-  const logs = (res.result && res.result.logs) || [];
-  const door = logs.filter((l) => (l.code === "sos_state" && String(l.value) === "true") || (l.code === "alarm_msg" && l.value === DOORBELL_MSG));
-  const alarm = logs.filter((l) => l.code === "master_state" && l.value === "alarm");
-  const out = { pcOn, door: door.length, alarm: alarm.length, logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };
+  const logs = ((res.result && res.result.logs) || []).sort((a, b) => a.event_time - b.event_time);
+  const is = (l, code, val) => l.code === code && String(l.value) === val;
+  const door = logs.filter((l) => is(l, "sos_state", "true") || (l.code === "alarm_msg" && l.value === DOORBELL_MSG));
+  const alarm = logs.filter((l) => is(l, "master_state", "alarm"));
+  const modes = logs.filter((l) => l.code === "master_mode" && MODE_MSG[l.value]);
+  const power = logs.filter((l) => l.code === "charge_state");
+  const link = logs.filter((l) => l.event_id === 1 || l.event_id === 2);
+  const out = { door: door.length, alarm: alarm.length, modes: modes.length, power: power.length, link: link.length,
+                logs: dry ? logs : undefined, tuya: res.success ? "ok" : res.msg };
   if (dry) return out;
   if (alarm.length && set.alarm_push) await loop(env).fetch("https://loop/alarm-start?at=" + alarm[0].event_time);
-  if (!pcOn && door.length && set.phone) await telegram(env, "door", "🚪 דלת הכניסה נפתחה", hhmmss(door[0].event_time));
+  if (door.length && set.phone) await telegram(env, "door", "🚪 דלת הכניסה נפתחה", hhmmss(door[0].event_time));
+  if (set.mode_push) for (const l of modes) await telegram(env, "door", MODE_MSG[l.value], hhmmss(l.event_time));
+  if (set.power_push) {
+    for (const l of power) await telegram(env, "door", String(l.value) === "true" ? "🔌 החשמל ליחידה חזר" : "⚡ הפסקת חשמל ביחידה – עובדת על סוללה", hhmmss(l.event_time));
+    for (const l of link) await telegram(env, "door", l.event_id === 2 ? "📴 היחידה התנתקה מהאינטרנט" : "📶 היחידה חזרה לאינטרנט", hhmmss(l.event_time));
+  }
   return out;
 }
 
@@ -118,6 +128,13 @@ export default {
         const p = url.searchParams.get("path") || "";
         if (!/^\/v1\.0\/(devices\/[^/]+$|iot-03\/devices\/[^/]+(\/status)?$)/.test(p)) throw new HttpError(403, "path");
         return json(await tuya(env, "GET", p));
+      }
+      // Test button on the page (owner only): one message to each bot.
+      if (url.pathname === "/notify-test" && req.method === "POST") {
+        await verifyUser(req, env);
+        await telegram(env, "door", "🔔 בדיקה", "בוט ההתראות עובד · " + hhmmss());
+        await telegram(env, "alarm", "🚨 בדיקה", "בוט האזעקה עובד · " + hhmmss());
+        return json({ success: true });
       }
       if (url.pathname === "/health") return json({ ok: true, tuyaKeys: !!(env.TUYA_ID && env.TUYA_SECRET), alarmBot: !!env.TG_ALARM_TOKEN });
 
